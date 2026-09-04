@@ -1,0 +1,15 @@
+{
+  "name": "taller-cifrado-clasico",
+  "version": "1.0.0",
+  "description": "Herramienta de criptoanálisis de cifrados clásicos (César, Afín, Vigenère) — Seguridad de la Información, Universidad El Bosque 2026-II",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/pruebas.js",
+    "test:interfaz": "node test/interfaz.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "license": "MIT"
+}

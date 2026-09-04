@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Criptoanálisis de cifrados clásicos</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<div class="contenedor">
+
+  <header>
+    <h1>Criptoanálisis de cifrados clásicos</h1>
+    <p>
+      Rompe cifrados César, Afín y Vigenère sobre el alfabeto español de 27 letras.
+      Pega cualquier criptograma: la herramienta calcula el índice de coincidencia,
+      cuenta frecuencias, elige el ataque y devuelve la clave y el texto descifrado.
+    </p>
+  </header>
+
+  <!-- ===================== ROMPER ===================== -->
+  <section id="seccion-romper">
+    <h2>Romper un criptograma</h2>
+    <p class="ayuda">
+      El texto se normaliza automáticamente: mayúsculas, sin espacios, sin signos y sin
+      tildes. La Ñ se conserva. Con menos de 100 letras el diagnóstico pierde fiabilidad.
+    </p>
+
+    <div class="panel">
+      <label for="criptograma">Criptograma</label>
+      <textarea id="criptograma" spellcheck="false"
+                placeholder="Pega aquí el texto cifrado"></textarea>
+
+      <div class="controles">
+        <div>
+          <label for="metodo">Ataque</label>
+          <select id="metodo">
+            <option value="">Detectar automáticamente</option>
+            <option value="cesar">Forzar César</option>
+            <option value="afin">Forzar Afín</option>
+            <option value="vigenere">Forzar Vigenère</option>
+          </select>
+        </div>
+        <div class="estrecho">
+          <label for="longitudClave">Longitud de clave</label>
+          <input type="number" id="longitudClave" min="1" max="20" placeholder="auto">
+        </div>
+        <div class="estrecho">
+          <button id="btnAnalizar">Analizar</button>
+        </div>
+        <div class="estrecho">
+          <button id="btnLimpiar" class="secundario">Limpiar</button>
+        </div>
+      </div>
+
+      <div id="errorAnalisis" class="error oculto"></div>
+    </div>
+
+    <div id="resultado" class="oculto"></div>
+  </section>
+
+  <!-- ===================== CIFRAR ===================== -->
+  <section id="seccion-cifrar">
+    <h2>Cifrar un texto</h2>
+    <p class="ayuda">
+      Sirve para validar el programa contra la guía del taller: al cifrar un texto original
+      con su clave, el resultado debe coincidir carácter por carácter con el criptograma publicado.
+    </p>
+
+    <div class="panel">
+      <label for="textoClaro">Texto claro</label>
+      <textarea id="textoClaro" spellcheck="false"
+                placeholder="Escribe el texto que quieres cifrar"></textarea>
+
+      <div class="controles">
+        <div>
+          <label for="metodoCifrado">Cifrado</label>
+          <select id="metodoCifrado">
+            <option value="cesar">César</option>
+            <option value="afin">Afín</option>
+            <option value="vigenere">Vigenère</option>
+          </select>
+        </div>
+        <div class="estrecho campo-cesar">
+          <label for="claveK">Desplazamiento b</label>
+          <input type="number" id="claveK" value="5">
+        </div>
+        <div class="estrecho campo-afin oculto">
+          <label for="claveA">a</label>
+          <input type="number" id="claveA" value="5">
+        </div>
+        <div class="estrecho campo-afin oculto">
+          <label for="claveB">b</label>
+          <input type="number" id="claveB" value="7">
+        </div>
+        <div class="campo-vigenere oculto">
+          <label for="clavePalabra">Palabra clave</label>
+          <input type="text" id="clavePalabra" value="NUBE" spellcheck="false">
+        </div>
+        <div class="estrecho">
+          <button id="btnCifrar">Cifrar</button>
+        </div>
+      </div>
+
+      <div id="errorCifrado" class="error oculto"></div>
+      <div id="salidaCifrado" class="oculto">
+        <div class="salida" id="textoCifrado"></div>
+        <div class="acciones">
+          <button class="secundario" id="btnCopiarCifrado">Copiar</button>
+          <button class="secundario" id="btnRomperEste">Romperlo arriba</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== RETOS DE LA GUÍA ===================== -->
+  <section id="seccion-retos">
+    <h2>Retos del taller</h2>
+    <p class="ayuda">
+      Los tres criptogramas de la guía de la asignatura. Cada botón los carga en la
+      herramienta y ejecuta el análisis a ciegas, sin darle la clave al programa.
+    </p>
+    <div id="listaRetos"></div>
+  </section>
+
+  <footer>
+    Seguridad de la Información · Universidad El Bosque · 2026-II<br>
+    Todo el análisis ocurre en tu navegador; ningún texto sale de tu equipo.
+  </footer>
+
+</div>
+
+<script src="cripto.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

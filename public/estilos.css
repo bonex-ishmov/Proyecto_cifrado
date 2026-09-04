@@ -1,0 +1,145 @@
+/* ============================================================================
+   estilos.css — Interfaz de la herramienta de criptoanálisis
+   Idea de diseño: una hoja de trabajo de criptoanalista. Papel gris frío,
+   tinta verde oscura, y el criptograma siempre en monoespaciada porque en
+   este trabajo la letra es el dato, no la tipografía.
+   ============================================================================ */
+
+:root {
+  --papel:        #eff2f1;
+  --tarjeta:      #ffffff;
+  --tinta:        #16201d;
+  --tinta-suave:  #5a6663;
+  --linea:        #d3d9d7;
+  --acento:       #0b6b57;
+  --acento-claro: #e2efeb;
+  --alerta:       #8a5310;
+  --alerta-claro: #f7ecdc;
+
+  --sans: ui-sans-serif, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.contenedor { max-width: 62rem; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
+
+/* --- Encabezado ---------------------------------------------------------- */
+header { border-bottom: 2px solid var(--tinta); padding-bottom: 1.25rem; margin-bottom: 2.5rem; }
+header h1 { font-size: 1.9rem; font-weight: 650; letter-spacing: -0.015em; margin: 0 0 .35rem; }
+header p { margin: 0; color: var(--tinta-suave); max-width: 46rem; }
+
+/* --- Secciones ----------------------------------------------------------- */
+section { margin-bottom: 3rem; }
+section > h2 { font-size: 1.25rem; font-weight: 620; margin: 0 0 .3rem; }
+section > .ayuda { margin: 0 0 1rem; color: var(--tinta-suave); font-size: .925rem; max-width: 46rem; }
+
+.panel { background: var(--tarjeta); border: 1px solid var(--linea); padding: 1.25rem; }
+
+/* --- Campos -------------------------------------------------------------- */
+label { display: block; font-size: .875rem; color: var(--tinta-suave); margin-bottom: .3rem; }
+
+textarea, input, select {
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--tinta);
+  background: var(--tarjeta);
+  border: 1px solid var(--linea);
+  padding: .55rem .65rem;
+  width: 100%;
+}
+
+textarea { font-family: var(--mono); font-size: .95rem; line-height: 1.7; resize: vertical; min-height: 8rem; word-break: break-all; }
+
+:focus-visible { outline: 2px solid var(--acento); outline-offset: 1px; }
+
+.controles { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin-top: 1rem; }
+.controles > div { flex: 1 1 10rem; min-width: 8rem; }
+.controles > div.estrecho { flex: 0 1 7rem; }
+
+button {
+  font-family: inherit;
+  font-size: .95rem;
+  font-weight: 550;
+  padding: .6rem 1.1rem;
+  border: 1px solid var(--tinta);
+  background: var(--tinta);
+  color: var(--papel);
+  cursor: pointer;
+}
+button:hover { background: var(--acento); border-color: var(--acento); }
+button.secundario { background: transparent; color: var(--tinta); }
+button.secundario:hover { background: var(--acento-claro); color: var(--tinta); border-color: var(--acento); }
+
+.oculto { display: none !important; }
+
+/* --- Mensajes ------------------------------------------------------------ */
+.error { margin-top: 1rem; padding: .8rem 1rem; background: var(--alerta-claro); border-left: 3px solid var(--alerta); color: var(--alerta); }
+.aviso { margin: 1rem 0 0; padding: .8rem 1rem; background: var(--alerta-claro); border-left: 3px solid var(--alerta); font-size: .925rem; }
+
+/* --- Veredicto ----------------------------------------------------------- */
+.veredicto { border-left: 4px solid var(--acento); background: var(--acento-claro); padding: 1.1rem 1.25rem; margin-top: 1.5rem; }
+.veredicto dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem 1.5rem; margin: 0; }
+.veredicto dt { color: var(--tinta-suave); font-size: .875rem; }
+.veredicto dd { margin: 0; font-weight: 600; }
+.veredicto dd.clave { font-family: var(--mono); }
+
+.salida {
+  font-family: var(--mono);
+  font-size: .95rem;
+  line-height: 1.75;
+  background: var(--tarjeta);
+  border: 1px solid var(--linea);
+  padding: 1rem;
+  margin-top: 1rem;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.acciones { display: flex; gap: .6rem; margin-top: .75rem; flex-wrap: wrap; }
+
+/* --- Detalles desplegables ----------------------------------------------- */
+details { border-top: 1px solid var(--linea); }
+details > summary { cursor: pointer; padding: .7rem 0; font-weight: 550; }
+details > summary:hover { color: var(--acento); }
+details > .cuerpo { padding: 0 0 1.25rem; }
+
+/* --- Tablas -------------------------------------------------------------- */
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--linea); vertical-align: middle; }
+th { font-weight: 550; color: var(--tinta-suave); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.mono { font-family: var(--mono); word-break: break-all; }
+tr.destacada td { background: var(--acento-claro); font-weight: 600; }
+
+/* --- Gráfico de frecuencias ---------------------------------------------- */
+.frecuencias { display: grid; grid-template-columns: 1.4rem 1fr 3.2rem; gap: .15rem .6rem; align-items: center; font-size: .85rem; }
+.frecuencias .letra { font-family: var(--mono); font-weight: 600; }
+.frecuencias .barra { position: relative; height: 1rem; background: #e8ebea; }
+.frecuencias .barra i { display: block; height: 100%; background: var(--acento); }
+.frecuencias .barra .esperado { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--alerta); }
+.frecuencias .valor { text-align: right; font-variant-numeric: tabular-nums; color: var(--tinta-suave); }
+.leyenda { margin-top: .8rem; font-size: .85rem; color: var(--tinta-suave); }
+.leyenda .marca { display: inline-block; width: 2px; height: .8em; background: var(--alerta); vertical-align: baseline; }
+
+/* --- Retos --------------------------------------------------------------- */
+.reto { border-top: 1px solid var(--linea); padding: 1rem 0; }
+.reto:last-child { border-bottom: 1px solid var(--linea); }
+.reto h3 { margin: 0 0 .2rem; font-size: 1rem; font-weight: 600; }
+.reto p { margin: 0 0 .6rem; color: var(--tinta-suave); font-size: .9rem; }
+
+footer { border-top: 1px solid var(--linea); padding-top: 1.25rem; color: var(--tinta-suave); font-size: .875rem; }
+
+@media (max-width: 34rem) {
+  .controles > div, .controles > div.estrecho { flex: 1 1 100%; }
+  .veredicto dl { grid-template-columns: 1fr; }
+}
