@@ -6,7 +6,7 @@
    a este mismo archivo.
    ============================================================================ */
 
-const C = require("../public/cripto.js");
+const C = require("../privado/cripto.js");
 
 /* ---------------------------------------------------------------------------
    Datos de la guía (páginas 4 y 5). Los criptogramas se copian tal cual,

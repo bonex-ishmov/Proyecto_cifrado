@@ -330,6 +330,34 @@ function pintarRetos() {
 }
 
 /* ---------------------------------------------------------------------------
+   Barra de sesión
+   Solo decide qué enlaces mostrar. No protege nada: la herramienta de
+   criptoanálisis es pública a propósito, y lo que sí está restringido (el
+   panel) lo comprueba el servidor en cada petición.
+--------------------------------------------------------------------------- */
+async function pintarBarraSesion() {
+  const barra = $("barraSesion");
+  if (!barra) return;
+  try {
+    const respuesta = await fetch("/sesion");
+    if (respuesta.ok) {
+      const { usuario } = await respuesta.json();
+      barra.innerHTML = `${usuario.username} (${usuario.rol}) · ` +
+        `<a href="/panel.html">Panel</a> · <a href="#" id="salir">Cerrar sesión</a>`;
+      document.getElementById("salir").addEventListener("click", async (e) => {
+        e.preventDefault();
+        await fetch("/logout", { method: "POST" });
+        location.reload();
+      });
+    } else {
+      barra.innerHTML = `<a href="/login.html">Iniciar sesión</a> · <a href="/registro.html">Crear cuenta</a>`;
+    }
+  } catch (e) {
+    barra.textContent = "";
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Arranque
 --------------------------------------------------------------------------- */
 $("btnAnalizar").addEventListener("click", analizarCriptograma);
@@ -349,3 +377,4 @@ $("btnRomperEste").addEventListener("click", () => {
 
 ajustarCamposCifrado();
 pintarRetos();
+pintarBarraSesion();

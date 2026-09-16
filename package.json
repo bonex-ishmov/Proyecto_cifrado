@@ -6,10 +6,17 @@
   "scripts": {
     "start": "node server.js",
     "test": "node test/pruebas.js",
-    "test:interfaz": "node test/interfaz.js"
+    "test:interfaz": "node test/interfaz.js",
+    "test:bd": "node test/basedatos.js",
+    "test:auth": "node test/auth.js",
+    "test:login": "node test/login.js",
+    "test:ip": "node test/fuerzabruta.js",
+    "test:roles": "node test/autorizacion.js"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "bcryptjs": "^2.4.3",
+    "express-session": "^1.18.0"
   },
   "license": "MIT"
 }

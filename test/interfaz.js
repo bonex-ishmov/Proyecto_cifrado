@@ -12,7 +12,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const PUBLIC = path.join(__dirname, "..", "public");
+const PRIVADO = path.join(__dirname, "..", "privado");
 
 /* --- DOM simulado -------------------------------------------------------- */
 function crearNodo(id) {
@@ -31,14 +31,18 @@ const contexto = {
   console,
   navigator: { clipboard: { writeText() {} } },
   window: {},
+  // app.js consulta /sesion al cargar; en la consola no hay servidor, así que
+  // se simula una respuesta de "sin sesión iniciada".
+  fetch: async () => ({ ok: false, json: async () => ({ ok: false, usuario: null }) }),
+  setTimeout, clearTimeout, setInterval, clearInterval,
   document: {
     getElementById: (id) => (nodos[id] = nodos[id] || crearNodo(id)),
     querySelectorAll: () => []
   }
 };
 vm.createContext(contexto);
-vm.runInContext(fs.readFileSync(path.join(PUBLIC, "cripto.js"), "utf8"), contexto);
-vm.runInContext(fs.readFileSync(path.join(PUBLIC, "app.js"), "utf8"), contexto);
+vm.runInContext(fs.readFileSync(path.join(PRIVADO, "cripto.js"), "utf8"), contexto);
+vm.runInContext(fs.readFileSync(path.join(PRIVADO, "app.js"), "utf8"), contexto);
 
 const $ = (id) => contexto.document.getElementById(id);
 const ejecutar = (codigo) => vm.runInContext(codigo, contexto);

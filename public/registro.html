@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crear cuenta</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<div class="contenedor estrecho-auth">
+
+  <header>
+    <h1>Crear cuenta</h1>
+    <p>
+      Las cuentas creadas aquí tienen rol <strong>Usuario</strong>. Los
+      administradores se crean desde la consola del servidor.
+    </p>
+  </header>
+
+  <section>
+    <div class="panel">
+      <!--
+        Los atributos required y minlength son comodidad para quien llena el
+        formulario, NO seguridad: se pueden borrar desde las herramientas del
+        navegador, y nada obliga a usar este formulario para llamar a /registro.
+        La validación que cuenta está en src/validaciones.js, en el servidor.
+      -->
+      <div class="campo">
+        <label for="username">Nombre de usuario</label>
+        <input type="text" id="username" name="username" required
+               autocomplete="username" spellcheck="false" maxlength="50">
+      </div>
+
+      <div class="campo">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" name="password" required
+               autocomplete="new-password" minlength="8">
+      </div>
+
+      <div class="campo">
+        <label for="confirmacion">Repite la contraseña</label>
+        <input type="password" id="confirmacion" name="confirmacion" required
+               autocomplete="new-password">
+      </div>
+
+      <div class="acciones">
+        <button id="btnRegistrar">Crear cuenta</button>
+      </div>
+
+      <div id="mensajes"></div>
+    </div>
+  </section>
+
+  <footer>
+    Seguridad de la Información · Universidad El Bosque · 2026-II<br>
+    <a href="/login.html">Ya tengo cuenta, iniciar sesión</a>
+  </footer>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function pintarErrores(lista) {
+  $("mensajes").innerHTML =
+    `<div class="error"><ul>${lista.map((e) => `<li>${e}</li>`).join("")}</ul></div>`;
+}
+
+function pintarExito(texto) {
+  $("mensajes").innerHTML = `<div class="exito">${texto}</div>`;
+}
+
+async function registrar() {
+  const username = $("username").value;
+  const password = $("password").value;
+
+  // Única comprobación que tiene sentido hacer aquí: que las dos contraseñas
+  // coincidan. No es seguridad, es evitarle al usuario un viaje al servidor
+  // por una errata. El servidor nunca ve el campo de confirmación.
+  if (password !== $("confirmacion").value) {
+    pintarErrores(["Las contraseñas no coinciden."]);
+    return;
+  }
+
+  $("btnRegistrar").disabled = true;
+  $("mensajes").innerHTML = "";
+
+  try {
+    const respuesta = await fetch("/registro", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+    const datos = await respuesta.json();
+
+    if (datos.ok) {
+      pintarExito(`${datos.mensaje} Tu rol es ${datos.rol}.`);
+      $("username").value = $("password").value = $("confirmacion").value = "";
+    } else {
+      pintarErrores(datos.errores || ["No se pudo crear la cuenta."]);
+    }
+  } catch (e) {
+    pintarErrores([`El servidor respondió ${respuesta.status} y no en JSON. ` +
+                         `Revisa que la ruta exista en server.js.`]);
+  } finally {
+    $("btnRegistrar").disabled = false;
+  }
+}
+
+$("btnRegistrar").addEventListener("click", registrar);
+$("confirmacion").addEventListener("keydown", (e) => { if (e.key === "Enter") registrar(); });
+</script>
+</body>
+</html>

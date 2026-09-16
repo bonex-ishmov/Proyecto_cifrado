@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<div class="contenedor">
+
+  <!--
+    Este archivo es público: cualquiera puede descargarlo, igual que cualquier
+    página de la web. Eso no es un problema, porque aquí no hay ningún dato.
+    Los datos llegan de /perfil, /usuarios y /bloqueos-ip, que sí comprueban
+    sesión y rol en el servidor. Esconder una página del cliente nunca es
+    control de acceso.
+  -->
+
+  <header>
+    <h1>Panel</h1>
+    <p id="identidad">Comprobando la sesión…</p>
+    <div class="acciones">
+      <button class="secundario" id="btnActualizar">Actualizar</button>
+      <button class="secundario" id="btnSalir">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <section id="miCuenta" class="oculto">
+    <h2>Mi cuenta</h2>
+    <div class="panel"><table id="tablaPerfil"></table></div>
+  </section>
+
+  <section id="administracion" class="oculto">
+    <h2>Cuentas del sistema</h2>
+    <p class="ayuda">
+      Bloqueo por cuenta, guardado en la base de datos. Sobrevive a un reinicio
+      del servidor.
+    </p>
+    <div class="panel"><table id="tablaUsuarios"></table></div>
+
+    <h2 style="margin-top:2.5rem">Direcciones IP vigiladas</h2>
+    <p class="ayuda">
+      Bloqueo por IP, en memoria del proceso. Se pierde al reiniciar el servidor.
+    </p>
+    <div class="panel"><table id="tablaIP"></table></div>
+  </section>
+
+  <div id="mensajes"></div>
+
+  <footer>
+    <a href="/">Volver a la herramienta de criptoanálisis</a>
+  </footer>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function esc(t) {
+  return String(t ?? "").replace(/[&<>"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function avisar(texto, clase = "exito") {
+  $("mensajes").innerHTML = `<div class="${clase}">${esc(texto)}</div>`;
+  setTimeout(() => { $("mensajes").innerHTML = ""; }, 5000);
+}
+
+/* --- Carga inicial -------------------------------------------------------- */
+async function cargar() {
+  const sesion = await fetch("/sesion");
+  if (!sesion.ok) {
+    // Sin sesión no hay nada que mostrar; el servidor ya lo rechazó.
+    location.href = "/login.html";
+    return;
+  }
+  const { usuario } = await sesion.json();
+  $("identidad").textContent = `${usuario.username} · rol ${usuario.rol}`;
+
+  await cargarPerfil();
+  if (usuario.rol === "Administrador") {
+    await cargarUsuarios();
+    await cargarIP();
+    $("administracion").classList.remove("oculto");
+  }
+}
+
+async function cargarPerfil() {
+  const datos = await (await fetch("/perfil")).json();
+  if (!datos.ok) return;
+  const p = datos.perfil;
+  $("tablaPerfil").innerHTML = `
+    <tr><th>Usuario</th><td>${esc(p.username)}</td></tr>
+    <tr><th>Rol</th><td>${esc(p.rol)}</td></tr>
+    <tr><th>Último acceso</th><td>${esc(p.ultimoAcceso || "—")} UTC</td></tr>
+    <tr><th>Intentos fallidos acumulados</th><td class="num">${p.intentosFallidos}</td></tr>`;
+  $("miCuenta").classList.remove("oculto");
+}
+
+async function cargarUsuarios() {
+  const datos = await (await fetch("/usuarios")).json();
+  if (!datos.ok) return;
+
+  const filas = datos.usuarios.map((u) => `
+    <tr class="${u.bloqueada ? "destacada" : ""}">
+      <td class="num">${u.id}</td>
+      <td>${esc(u.username)}</td>
+      <td>${esc(u.rol)}</td>
+      <td class="num">${u.intentos_fallidos}</td>
+      <td>${u.bloqueada
+            ? `Bloqueada (${Math.ceil(u.segundosRestantes / 60)} min)`
+            : "Activa"}</td>
+      <td>${u.bloqueada || u.intentos_fallidos > 0
+            ? `<button class="secundario" data-desbloquear="${u.id}">Desbloquear</button>`
+            : ""}</td>
+      <td>${esc(u.ultimo_acceso || "—")}</td>
+    </tr>`).join("");
+
+  $("tablaUsuarios").innerHTML = `
+    <tr><th class="num">id</th><th>Usuario</th><th>Rol</th><th class="num">Fallos</th>
+        <th>Estado</th><th></th><th>Último acceso (UTC)</th></tr>${filas}`;
+
+  $("tablaUsuarios").querySelectorAll("button[data-desbloquear]").forEach((boton) => {
+    boton.addEventListener("click", () => desbloquear(boton.dataset.desbloquear));
+  });
+}
+
+async function cargarIP() {
+  const datos = await (await fetch("/bloqueos-ip")).json();
+  const filas = datos.direcciones.map((d) => `
+    <tr class="${d.bloqueada ? "destacada" : ""}">
+      <td class="mono">${esc(d.ip)}</td>
+      <td class="num">${d.intentosFallidos}</td>
+      <td>${d.bloqueada ? `Bloqueada (${d.segundosRestantes} s)` : "Vigilada"}</td>
+    </tr>`).join("");
+
+  $("tablaIP").innerHTML = datos.direcciones.length
+    ? `<tr><th>Dirección</th><th class="num">Fallos</th><th>Estado</th></tr>${filas}`
+    : `<tr><td>Ninguna dirección con intentos fallidos recientes.</td></tr>`;
+}
+
+async function desbloquear(id) {
+  const respuesta = await fetch(`/usuarios/${id}/desbloquear`, { method: "POST" });
+  const datos = await respuesta.json();
+  avisar(datos.ok ? datos.mensaje : (datos.errores || ["No se pudo desbloquear."])[0],
+         datos.ok ? "exito" : "error");
+  await cargarUsuarios();
+}
+
+$("btnActualizar").addEventListener("click", cargar);
+$("btnSalir").addEventListener("click", async () => {
+  await fetch("/logout", { method: "POST" });
+  location.href = "/login.html";
+});
+
+cargar();
+</script>
+</body>
+</html>

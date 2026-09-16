@@ -138,8 +138,21 @@ tr.destacada td { background: var(--acento-claro); font-weight: 600; }
 .reto p { margin: 0 0 .6rem; color: var(--tinta-suave); font-size: .9rem; }
 
 footer { border-top: 1px solid var(--linea); padding-top: 1.25rem; color: var(--tinta-suave); font-size: .875rem; }
+footer a { color: var(--acento); }
+
+/* --- Formularios de autenticación (registro, login) ---------------------- */
+.contenedor.estrecho-auth { max-width: 30rem; }
+.campo { margin-bottom: 1rem; }
+.exito { margin-top: 1rem; padding: .8rem 1rem; background: var(--acento-claro); border-left: 3px solid var(--acento); }
+.error ul { margin: 0; padding-left: 1.1rem; }
+.error li + li { margin-top: .3rem; }
+button:disabled { opacity: .5; cursor: default; }
 
 @media (max-width: 34rem) {
   .controles > div, .controles > div.estrecho { flex: 1 1 100%; }
   .veredicto dl { grid-template-columns: 1fr; }
 }
+
+/* --- Barra de sesión ------------------------------------------------------ */
+.barra-sesion { font-size: .875rem; color: var(--tinta-suave); margin: 0 0 .75rem; }
+.barra-sesion a { color: var(--acento); }

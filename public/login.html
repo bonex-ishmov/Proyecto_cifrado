@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iniciar sesión</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<div class="contenedor estrecho-auth">
+
+  <header>
+    <h1>Iniciar sesión</h1>
+    <p>La herramienta de criptoanálisis requiere una cuenta. Las credenciales se
+       verifican en el servidor.</p>
+  </header>
+
+  <section>
+    <div class="panel">
+      <div class="campo">
+        <label for="username">Usuario</label>
+        <input type="text" id="username" name="username" required
+               autocomplete="username" spellcheck="false" maxlength="50">
+      </div>
+
+      <div class="campo">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" name="password" required
+               autocomplete="current-password">
+      </div>
+
+      <div class="acciones">
+        <button id="btnEntrar">Entrar</button>
+      </div>
+
+      <div id="mensajes"></div>
+    </div>
+  </section>
+
+  <footer>
+    ¿No tienes cuenta? <a href="/registro.html">Crear una</a><br>
+    <a href="/">Volver a la herramienta de criptoanálisis</a>
+  </footer>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let cuentaAtras = null;
+
+function pintarErrores(lista) {
+  $("mensajes").innerHTML =
+    `<div class="error"><ul>${lista.map((e) => `<li>${e}</li>`).join("")}</ul></div>`;
+}
+
+/** Muestra el bloqueo con los segundos corriendo en pantalla. */
+function pintarBloqueo(segundos) {
+  clearInterval(cuentaAtras);
+  const actualizar = () => {
+    if (segundos <= 0) {
+      clearInterval(cuentaAtras);
+      $("mensajes").innerHTML = `<div class="aviso">El bloqueo terminó. Puedes intentarlo de nuevo.</div>`;
+      $("btnEntrar").disabled = false;
+      return;
+    }
+    const m = Math.floor(segundos / 60), s = segundos % 60;
+    $("mensajes").innerHTML =
+      `<div class="error">Cuenta bloqueada por intentos fallidos.
+       Podrás intentarlo de nuevo en <strong>${m}:${String(s).padStart(2, "0")}</strong>.</div>`;
+    segundos--;
+  };
+  $("btnEntrar").disabled = true;
+  actualizar();
+  cuentaAtras = setInterval(actualizar, 1000);
+}
+
+async function entrar() {
+  $("btnEntrar").disabled = true;
+  $("mensajes").innerHTML = "";
+
+  try {
+    const respuesta = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: $("username").value, password: $("password").value })
+        });
+    const datos = await respuesta.json();
+
+    if (datos.ok) {
+      $("mensajes").innerHTML =
+        `<div class="exito">${datos.mensaje} Bienvenida, ${datos.username} (${datos.rol}).</div>`;
+      $("password").value = "";
+      location.href = "/";
+      return;
+    }
+
+    if (datos.bloqueado) {
+      pintarBloqueo(datos.segundosRestantes);
+      return;
+    }
+
+    const lista = datos.errores || ["No se pudo iniciar sesión."];
+    if (typeof datos.intentosRestantes === "number") {
+      lista.push(`Te quedan ${datos.intentosRestantes} intentos antes de que la cuenta se bloquee.`);
+    }
+    pintarErrores(lista);
+  } catch (e) {
+    pintarErrores([`El servidor respondió ${respuesta.status} y no en JSON. ` +
+                         `Revisa que la ruta exista en server.js.`]);
+  } finally {
+    if (!cuentaAtras) $("btnEntrar").disabled = false;
+  }
+}
+
+$("btnEntrar").addEventListener("click", entrar);
+$("password").addEventListener("keydown", (e) => { if (e.key === "Enter") entrar(); });
+</script>
+</body>
+</html>
