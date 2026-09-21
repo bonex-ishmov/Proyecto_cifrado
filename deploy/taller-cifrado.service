@@ -20,16 +20,19 @@ User=ec2-user
 WorkingDirectory=/home/ec2-user/Proyecto_cifrado
 ExecStart=/usr/bin/node server.js
 
-# Variables no secretas.
+# Variables no secretas. PORT solo se usa en modo HTTP (sin certificado).
 Environment=PORT=80
 Environment=NODE_ENV=production
 
-# La clave de sesión vive en un archivo aparte con permisos 600. Si se
-# escribiera aquí, la vería cualquier usuario del sistema: los archivos de
-# systemd son legibles por todos.
+# Archivo de configuración con permisos 600. Contiene:
+#   SESSION_SECRET=...           siempre
+#   TLS_CERT=... y TLS_KEY=...   para activar HTTPS (Fases S2 y S3)
+#   DOMINIO=www.tudominio.xyz    nombre canónico para la redirección
+# Editar este archivo y reiniciar el servicio es la activación manual del
+# certificado. No va aquí porque los archivos de systemd los lee cualquiera.
 EnvironmentFile=/etc/taller-cifrado.env
 
-# Permite abrir el puerto 80 sin ejecutar el proceso como root.
+# Permite abrir los puertos 80 y 443 sin ejecutar el proceso como root.
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 
 Restart=on-failure

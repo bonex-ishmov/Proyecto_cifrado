@@ -7,8 +7,9 @@
    hashing y control de intentos— se procesa aquí, en el servidor, como exige la
    Nota Arquitectónica de la guía del módulo de inicio de sesión.
 
-   Desarrollo:  node server.js        -> http://localhost:3000
-   Producción:  PORT=80 node server.js -> puerto 80 sin SSL, como pide la guía
+   Desarrollo:  node server.js  -> http://localhost:3000, sin certificado
+   Producción:  con TLS_CERT y TLS_KEY definidas, HTTPS en el 443 y el puerto
+                80 solo redirige a HTTPS (ver src/https.js)
    ============================================================================ */
 
 const express = require("express");
@@ -20,19 +21,45 @@ const { autenticar } = require("./src/login.js");
 const { proteccionLogin } = require("./src/fuerzaBruta.js");
 const { requiereSesion, requiereSesionPagina, requiereRol } = require("./src/autorizacion.js");
 const { perfil, listadoUsuarios, desbloquearUsuario } = require("./src/panel.js");
+const { configuracionTLS, arrancar } = require("./src/https.js");
 
 const app = express();
-const PUERTO = process.env.PORT || 3000;
+
+/* Se lee al principio porque la cookie de sesión depende de ella. Si hay un
+   certificado configurado pero no se puede leer, el servidor NO arranca: es
+   preferible caído que sirviendo sin cifrado cuando se esperaba cifrado. */
+let tls;
+try {
+  tls = configuracionTLS(process.env);
+} catch (e) {
+  console.error("Configuración de HTTPS inválida: " + e.message);
+  process.exit(1);
+}
 
 /* La IP del cliente se toma de la conexión TCP, que no se puede falsificar.
-   Si algún día se pone un proxy o un balanceador delante (por ejemplo, al
-   migrar a HTTPS con nginx), habría que activar app.set("trust proxy", 1) para
+   Como Node atiende HTTPS directamente, sin proxy delante, esa IP es la real.
+   Si algún día se pone un proxy o un balanceador delante (nginx, un balanceador
+   de AWS), habría que activar app.set("trust proxy", 1) para
    leer la IP real de la cabecera X-Forwarded-For. OJO: activarlo SIN proxy
    delante sería un agujero, porque cualquiera podría mandar esa cabecera a mano
    y estrenar una IP distinta en cada intento, saltándose el bloqueo. */
 
 // Abre la base de datos y aplica el esquema si hace falta.
 db.iniciar();
+
+/* --- HSTS ------------------------------------------------------------------
+   Con HTTPS activo, se le dice al navegador que durante un día no intente ni
+   siquiera conectarse por HTTP a este dominio. La redirección del puerto 80
+   protege la primera visita; HSTS protege las siguientes, porque el navegador
+   ya ni pregunta por HTTP. Los navegadores ignoran esta cabecera si el
+   certificado no es de confianza, así que con el autofirmado no tiene efecto.
+--------------------------------------------------------------------------- */
+if (tls) {
+  app.use((req, res, next) => {
+    res.set("Strict-Transport-Security", "max-age=86400");
+    next();
+  });
+}
 
 /* --- Middlewares generales ------------------------------------------------ */
 // Leen el cuerpo de las peticiones. El límite evita que alguien intente
@@ -49,17 +76,16 @@ app.use(express.urlencoded({ extended: false, limit: "32kb" }));
              el daño de un XSS.
    sameSite: el navegador no envía la cookie en peticiones que vengan de otros
              sitios, que es la defensa básica contra CSRF.
-   secure:   debería ir en true para que la cookie viaje solo por HTTPS, pero
-             este taller exige publicar en HTTP sin SSL. Con secure=true la
-             sesión no funcionaría. Es una limitación impuesta por el enunciado
-             anterior, y queda documentada.
+   secure:   con HTTPS activo, la cookie solo viaja cifrada: el navegador se
+             niega a mandarla por HTTP. Sin HTTPS (desarrollo) va en false,
+             porque con true la sesión sencillamente no funcionaría.
 --------------------------------------------------------------------------- */
 app.use(session({
   name: "sid",
   secret: process.env.SESSION_SECRET || "clave-de-desarrollo-cambiar-en-produccion",
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: "lax", secure: false, maxAge: 30 * 60 * 1000 }
+  cookie: { httpOnly: true, sameSite: "lax", secure: Boolean(tls), maxAge: 30 * 60 * 1000 }
 }));
 
 /* --- Archivos del navegador ------------------------------------------------
@@ -178,6 +204,4 @@ app.use((err, req, res, next) => {
   res.status(500).json({ ok: false, errores: ["Error interno del servidor."] });
 });
 
-app.listen(PUERTO, () => {
-  console.log(`Servidor escuchando en http://localhost:${PUERTO}`);
-});
+arrancar(app, tls);

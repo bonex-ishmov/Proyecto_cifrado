@@ -1,4 +1,6 @@
 datos/
+acme-challenge/
+
 # Logs
 logs
 *.log
