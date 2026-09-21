@@ -11,7 +11,9 @@
     "test:auth": "node test/auth.js",
     "test:login": "node test/login.js",
     "test:ip": "node test/fuerzabruta.js",
-    "test:roles": "node test/autorizacion.js"
+    "test:roles": "node test/autorizacion.js",
+    "test:servidor": "node test/servidor.js",
+    "test:todo": "node test/pruebas.js && node test/interfaz.js && node test/basedatos.js && node test/auth.js && node test/login.js && node test/fuerzabruta.js && node test/autorizacion.js && node test/servidor.js"
   },
   "dependencies": {
     "express": "^4.19.2",

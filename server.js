@@ -139,7 +139,6 @@ app.get("/sesion", (req, res) => {
    El rol se comprueba en el servidor, contra req.session. Ocultar un botón en
    la página no protege nada: cualquiera puede llamar a estas rutas con curl.
 --------------------------------------------------------------------------- */
-app.use(requiereSesionPagina, express.static(path.join(__dirname, "privado")));
 
 // Cualquier usuario autenticado: sus propios datos.
 app.get("/perfil", requiereSesion, (req, res) => {
@@ -163,6 +162,12 @@ app.post("/usuarios/:id/desbloquear", requiereSesion, requiereRol("Administrador
 app.get("/bloqueos-ip", requiereSesion, requiereRol("Administrador"), (req, res) => {
   res.json({ ok: true, direcciones: proteccionLogin.estado() });
 });
+
+/* --- Páginas que exigen sesión --------------------------------------------
+   Va DESPUÉS de todas las rutas. Si estuviera antes, interceptaría también
+   POST /login y POST /registro, y nadie podría iniciar sesión.
+--------------------------------------------------------------------------- */
+app.use(requiereSesionPagina, express.static(path.join(__dirname, "privado")));
 
 /* --- Manejador de errores -------------------------------------------------- */
 // Se registra el detalle en el log del servidor, pero al cliente solo le llega

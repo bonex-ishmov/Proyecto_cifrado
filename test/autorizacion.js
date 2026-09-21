@@ -75,8 +75,8 @@ probar("requiereRol admite varios roles a la vez",
 
 /* --- requiereSesionPagina ------------------------------------------------- */
 console.log("\n=== Middleware requiereSesionPagina (archivos del navegador) ===");
-function ejecutarPagina(sesion) {
-  const req = sesion === null ? {} : { session: { usuario: sesion } };
+function ejecutarPagina(sesion, method = "GET") {
+  const req = sesion === null ? { method } : { method, session: { usuario: sesion } };
   let destino = null, siguio = false;
   const res = { redirect(d) { destino = d; } };
   requiereSesionPagina(req, res, () => { siguio = true; });
@@ -87,6 +87,10 @@ probar("Sin sesión redirige al login en vez de devolver un JSON",
 probar("Con sesión entrega la página", ejecutarPagina(USUARIO).siguio === true);
 probar("El administrador también entra a las páginas comunes",
   ejecutarPagina(ADMIN).siguio === true);
+probar("Sin sesión, un POST pasa de largo (si no, POST /login sería inalcanzable)",
+  ejecutarPagina(null, "POST").siguio === true && ejecutarPagina(null, "POST").destino === null);
+probar("Sin sesión, HEAD también se protege",
+  ejecutarPagina(null, "HEAD").destino === "/login.html");
 
 /* --- El rol NO se lee de la petición ------------------------------------- */
 console.log("\n=== El rol solo se lee de la sesión del servidor ===");

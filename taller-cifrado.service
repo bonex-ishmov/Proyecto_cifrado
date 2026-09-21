@@ -1,0 +1,39 @@
+# ============================================================================
+# taller-cifrado.service — Servicio de systemd
+# Universidad El Bosque — Seguridad de la Información — 2026-II
+#
+# Instalación en la instancia EC2:
+#   sudo cp deploy/taller-cifrado.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now taller-cifrado
+#
+# Ajusta WorkingDirectory si tu carpeta no es /home/ec2-user/Proyecto_cifrado.
+# ============================================================================
+
+[Unit]
+Description=Taller de cifrado clasico y modulo de inicio de sesion
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/Proyecto_cifrado
+ExecStart=/usr/bin/node server.js
+
+# Variables no secretas.
+Environment=PORT=80
+Environment=NODE_ENV=production
+
+# La clave de sesión vive en un archivo aparte con permisos 600. Si se
+# escribiera aquí, la vería cualquier usuario del sistema: los archivos de
+# systemd son legibles por todos.
+EnvironmentFile=/etc/taller-cifrado.env
+
+# Permite abrir el puerto 80 sin ejecutar el proceso como root.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
