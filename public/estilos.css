@@ -156,3 +156,36 @@ button:disabled { opacity: .5; cursor: default; }
 /* --- Barra de sesión ------------------------------------------------------ */
 .barra-sesion { font-size: .875rem; color: var(--tinta-suave); margin: 0 0 .75rem; }
 .barra-sesion a { color: var(--acento); }
+
+/* --- Comprobación humana (CAPTCHA) ----------------------------------------
+   La página está en public/, sin sesión, porque se ve justo antes de tenerla.
+-------------------------------------------------------------------------- */
+.captcha-imagen {
+  margin: 1rem 0;
+  padding: .5rem;
+  background: var(--tarjeta);
+  border: 1px solid var(--linea);
+  display: flex;
+  justify-content: center;
+}
+/* El dibujo se adapta al ancho del móvil sin perder proporción. */
+.captcha-imagen svg { max-width: 100%; height: auto; }
+
+.captcha-rejilla {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .5rem;
+  margin: 1rem 0;
+}
+.captcha-celda {
+  padding: 0;
+  aspect-ratio: 1 / 1;
+  background: var(--tarjeta);
+  border: 1px solid var(--linea);
+  cursor: pointer;
+  line-height: 0;
+}
+.captcha-celda:hover { background: var(--acento-claro); border-color: var(--acento); }
+/* Seleccionada: borde grueso y marca, para que no dependa solo del color. */
+.captcha-celda.elegida { border: 3px solid var(--acento); background: var(--acento-claro); }
+.captcha-celda svg { display: block; width: 100%; height: 100%; }

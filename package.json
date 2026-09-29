@@ -13,8 +13,9 @@
     "test:ip": "node test/fuerzabruta.js",
     "test:roles": "node test/autorizacion.js",
     "test:servidor": "node test/servidor.js",
-    "test:todo": "node test/pruebas.js && node test/interfaz.js && node test/basedatos.js && node test/auth.js && node test/login.js && node test/fuerzabruta.js && node test/autorizacion.js && node test/https.js && node test/servidor.js",
-    "test:https": "node test/https.js"
+    "test:todo": "node test/pruebas.js && node test/interfaz.js && node test/basedatos.js && node test/auth.js && node test/login.js && node test/fuerzabruta.js && node test/autorizacion.js && node test/captcha.js && node test/https.js && node test/servidor.js",
+    "test:https": "node test/https.js",
+    "test:captcha": "node test/captcha.js"
   },
   "dependencies": {
     "express": "^4.19.2",

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comprobación humana</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<div class="contenedor estrecho-auth">
+
+  <header>
+    <h1>Un paso más</h1>
+    <p>Las credenciales son correctas. Antes de abrir la sesión hay que
+       comprobar que quien entra es una persona y no un programa.</p>
+  </header>
+
+  <section>
+    <div class="panel">
+
+      <p class="barra-sesion" id="saludo"></p>
+
+      <!-- El enunciado lo manda el servidor, porque depende de la variante
+           que haya tocado. -->
+      <p id="enunciado" class="ayuda">Cargando el desafío…</p>
+
+      <!-- Variantes "texto" y "aritmetica": una sola imagen. -->
+      <div id="zonaImagen" class="captcha-imagen oculto"></div>
+
+      <!-- Variante "figuras": rejilla de nueve celdas que se pulsan. -->
+      <div id="zonaRejilla" class="captcha-rejilla oculto"></div>
+
+      <div class="campo oculto" id="zonaRespuesta">
+        <label for="respuesta">Tu respuesta</label>
+        <input type="text" id="respuesta" autocomplete="off" spellcheck="false"
+               maxlength="12" inputmode="text">
+      </div>
+
+      <div class="acciones">
+        <button id="btnComprobar" disabled>Comprobar</button>
+        <button id="btnOtra" class="secundario" disabled>Otro desafío</button>
+      </div>
+
+      <p class="leyenda" id="intentos"></p>
+      <div id="mensajes"></div>
+
+    </div>
+  </section>
+
+  <footer>
+    ¿Prefieres empezar de cero? <a href="/login.html">Volver al inicio de sesión</a>
+  </footer>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+/* Lo único que el navegador sabe del desafío es lo que se dibuja y de qué
+   forma se responde. La respuesta correcta se queda en el servidor. */
+let modo = null;
+let elegidas = new Set();
+
+function pintarErrores(lista) {
+  $("mensajes").innerHTML =
+    `<div class="error"><ul>${lista.map((e) => `<li>${e}</li>`).join("")}</ul></div>`;
+}
+
+/** Cuando se pierde el inicio de sesión a medias no hay nada que hacer aquí. */
+function volverAlLogin(errores) {
+  pintarErrores(errores || ["Vuelve a introducir tus credenciales."]);
+  $("btnComprobar").disabled = true;
+  $("btnOtra").disabled = true;
+  setTimeout(() => { location.href = "/login.html"; }, 2500);
+}
+
+function pintarDesafio(desafio, intentosRestantes) {
+  modo = desafio.modo;
+  elegidas = new Set();
+
+  $("enunciado").textContent = desafio.enunciado;
+  $("intentos").textContent =
+    `Te quedan ${intentosRestantes} intento${intentosRestantes === 1 ? "" : "s"}.`;
+
+  const imagen = $("zonaImagen"), rejilla = $("zonaRejilla"), respuesta = $("zonaRespuesta");
+  imagen.classList.add("oculto");
+  rejilla.classList.add("oculto");
+  respuesta.classList.add("oculto");
+
+  if (desafio.modo === "seleccion") {
+    // El SVG de cada celda lo genera el servidor y solo contiene figuras; aun
+    // así se inserta dentro de un <button> propio y no se mezcla con texto.
+    rejilla.innerHTML = desafio.celdas.map((svg, i) =>
+      `<button type="button" class="captcha-celda" data-indice="${i}"
+               aria-pressed="false">${svg}</button>`).join("");
+    rejilla.classList.remove("oculto");
+
+    rejilla.querySelectorAll(".captcha-celda").forEach((celda) => {
+      celda.addEventListener("click", () => {
+        const i = Number(celda.dataset.indice);
+        if (elegidas.has(i)) { elegidas.delete(i); } else { elegidas.add(i); }
+        celda.classList.toggle("elegida", elegidas.has(i));
+        celda.setAttribute("aria-pressed", elegidas.has(i) ? "true" : "false");
+      });
+    });
+  } else {
+    imagen.innerHTML = desafio.svg;
+    imagen.classList.remove("oculto");
+    respuesta.classList.remove("oculto");
+
+    const campo = $("respuesta");
+    campo.value = "";
+    campo.inputMode = desafio.modo === "numero" ? "numeric" : "text";
+    campo.focus();
+  }
+
+  $("btnComprobar").disabled = false;
+  $("btnOtra").disabled = false;
+}
+
+async function cargar(otra) {
+  $("mensajes").innerHTML = "";
+  try {
+    const respuesta = await fetch("/captcha" + (otra ? "?otra=1" : ""));
+    const datos = await respuesta.json();
+
+    if (!datos.ok) return volverAlLogin(datos.errores);
+    $("saludo").textContent = `Entrando como ${datos.usuario}.`;
+    pintarDesafio(datos.desafio, datos.intentosRestantes);
+  } catch (e) {
+    pintarErrores(["No se pudo contactar con el servidor."]);
+  }
+}
+
+async function comprobar() {
+  $("btnComprobar").disabled = true;
+  $("btnOtra").disabled = true;
+  $("mensajes").innerHTML = "";
+
+  const respuesta = modo === "seleccion"
+    ? Array.from(elegidas).sort((a, b) => a - b)
+    : $("respuesta").value;
+
+  try {
+    const peticion = await fetch("/captcha", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ respuesta })
+    });
+    const datos = await peticion.json();
+
+    if (datos.ok) {
+      $("mensajes").innerHTML =
+        `<div class="exito">${datos.mensaje} Bienvenida, ${datos.username} (${datos.rol}).</div>`;
+      location.href = "/";
+      return;
+    }
+
+    if (datos.reiniciar) return volverAlLogin(datos.errores);
+
+    // Fallo normal: el servidor ya mandó un desafío nuevo.
+    pintarErrores(datos.errores || ["La respuesta no es correcta."]);
+    if (datos.desafio) pintarDesafio(datos.desafio, datos.intentosRestantes);
+  } catch (e) {
+    pintarErrores(["No se pudo contactar con el servidor."]);
+    $("btnComprobar").disabled = false;
+    $("btnOtra").disabled = false;
+  }
+}
+
+$("btnComprobar").addEventListener("click", comprobar);
+$("btnOtra").addEventListener("click", () => cargar(true));
+$("respuesta").addEventListener("keydown", (e) => { if (e.key === "Enter") comprobar(); });
+
+cargar(false);
+</script>
+</body>
+</html>

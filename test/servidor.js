@@ -24,6 +24,13 @@ const PUERTO = 3100 + Math.floor(Math.random() * 800);
 const BASE = `http://127.0.0.1:${PUERTO}`;
 const RUTA_BD = path.join(os.tmpdir(), `auth-humo-${Date.now()}.db`);
 
+/* Un CAPTCHA que funcione no lo puede resolver un programa: ese es su trabajo.
+   El servidor se arranca con CAPTCHA_PRUEBA, que fija la respuesta a este
+   valor conocido para poder recorrer el flujo entero. Esa variable y un
+   certificado configurado son incompatibles (ver server.js), así que este modo
+   no existe en producción. */
+const RESPUESTA_FIJA = "HUMANO";
+
 let pasadas = 0, falladas = 0;
 function probar(descripcion, condicion) {
   condicion ? pasadas++ : falladas++;
@@ -63,7 +70,8 @@ function arrancar() {
   return new Promise((resolve, reject) => {
     const hijo = spawn(process.execPath, ["server.js"], {
       cwd: RAIZ,
-      env: { ...process.env, PORT: String(PUERTO), DB_PATH: RUTA_BD, SESSION_SECRET: "prueba-de-humo" }
+      env: { ...process.env, PORT: String(PUERTO), DB_PATH: RUTA_BD,
+              SESSION_SECRET: "prueba-de-humo", CAPTCHA_PRUEBA: RESPUESTA_FIJA }
     });
 
     const limite = setTimeout(() => reject(new Error("El servidor no arrancó en 10 segundos.")), 10000);
@@ -124,7 +132,40 @@ async function principal() {
 
     const entrada = await pedir("/login", { json: { username: "manuela", password: "ClaveSegura123" } });
     probar("Credenciales correctas responden 200", entrada.estado === 200 && entrada.cuerpo.ok === true);
+    probar("Pero la sesión TODAVÍA no se abre: el servidor pide el CAPTCHA",
+      entrada.cuerpo.requiereCaptcha === true && entrada.cuerpo.autenticado === false);
     probar("El servidor entregó una cookie de sesión", cookie.includes("sid"));
+
+    /* --- Comprobación humana --------------------------------------------- */
+    console.log("\n=== Comprobación humana (CAPTCHA) ===");
+
+    const aMedias = await pedir("/");
+    probar("Con la contraseña acertada pero sin CAPTCHA, la raíz sigue cerrada",
+      aMedias.estado === 302 && aMedias.destino === "/captcha.html");
+    probar("cripto.js tampoco se descarga todavía", (await pedir("/cripto.js")).estado === 302);
+    probar("/sesion sigue respondiendo que no hay nadie", (await pedir("/sesion")).estado === 401);
+    probar("/perfil sigue cerrado", (await pedir("/perfil")).estado === 401);
+    probar("La página del CAPTCHA sí se sirve", (await pedir("/captcha.html")).estado === 200);
+
+    const desafio = await pedir("/captcha");
+    probar("El servidor entrega un desafío", desafio.estado === 200 && desafio.cuerpo.ok === true);
+    probar("El desafío trae enunciado y dibujo",
+      typeof desafio.cuerpo.desafio.enunciado === "string" &&
+      Boolean(desafio.cuerpo.desafio.svg || desafio.cuerpo.desafio.celdas));
+    probar("El desafío NO trae la respuesta",
+      !("respuesta" in desafio.cuerpo.desafio));
+    probar("Se anuncian tres intentos", desafio.cuerpo.intentosRestantes === 3);
+
+    const fallo = await pedir("/captcha", { json: { respuesta: "respuesta-equivocada" } });
+    probar("Una respuesta incorrecta responde 401", fallo.estado === 401);
+    probar("Y descuenta un intento", fallo.cuerpo.intentosRestantes === 2);
+    probar("Y llega un desafío nuevo, no el mismo", Boolean(fallo.cuerpo.desafio));
+    probar("Tras fallar sigue sin haber sesión", (await pedir("/sesion")).estado === 401);
+
+    const acierto = await pedir("/captcha", { json: { respuesta: RESPUESTA_FIJA } });
+    probar("La respuesta correcta abre la sesión", acierto.estado === 200 && acierto.cuerpo.ok === true);
+    probar("Y el servidor confirma usuario y rol",
+      acierto.cuerpo.username === "manuela" && acierto.cuerpo.rol === "Usuario");
 
     /* --- Con sesión de usuario normal ------------------------------------ */
     console.log("\n=== Con sesión de usuario ===");
@@ -146,6 +187,27 @@ async function principal() {
     console.log("\n=== Cierre de sesión ===");
     probar("El logout responde ok", (await pedir("/logout", { method: "POST" })).cuerpo.ok === true);
     probar("Tras cerrar sesión, la raíz vuelve a redirigir", (await pedir("/")).estado === 302);
+
+    /* --- El CAPTCHA no se puede saltar ------------------------------------ */
+    console.log("\n=== El paso intermedio no se puede saltar ===");
+
+    probar("Sin inicio de sesión en curso, pedir un desafío responde 401",
+      (await pedir("/captcha")).estado === 401);
+    probar("Y contestarlo a pelo tampoco sirve",
+      (await pedir("/captcha", { json: { respuesta: RESPUESTA_FIJA } })).estado === 401);
+
+    await pedir("/login", { json: { username: "manuela", password: "ClaveSegura123" } });
+    let ultimoFallo = null;
+    for (let i = 0; i < 3; i++) {
+      ultimoFallo = await pedir("/captcha", { json: { respuesta: "sigo-sin-acertar" } });
+    }
+    probar("Al tercer fallo se tira el inicio de sesión a medias",
+      ultimoFallo.estado === 401 && ultimoFallo.cuerpo.reiniciar === true);
+    probar("Y ya no hay desafío que pedir", (await pedir("/captcha")).estado === 401);
+    probar("Haber acertado la contraseña antes no deja sesión abierta",
+      (await pedir("/sesion")).estado === 401);
+    probar("La raíz vuelve a mandar al login, no al CAPTCHA",
+      (await pedir("/")).destino === "/login.html");
 
     /* --- Fuerza bruta ---------------------------------------------------- */
     console.log("\n=== Bloqueo tras intentos fallidos ===");

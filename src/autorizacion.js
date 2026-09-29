@@ -53,6 +53,13 @@ function requiereSesionPagina(req, res, next) {
   // y sería imposible autenticarse: haría falta sesión para poder crearla.
   if (req.method !== "GET" && req.method !== "HEAD") return next();
   if (req.session && req.session.usuario) return next();
+
+  // Inicio de sesión a medias: la contraseña ya se verificó y solo falta el
+  // CAPTCHA. Se lleva al paso que falta en vez de al principio, para no pedir
+  // la contraseña dos veces. Ojo: esto NO da acceso a nada; mientras no exista
+  // req.session.usuario, este middleware sigue sin dejar pasar.
+  if (req.session && req.session.pendiente) return res.redirect("/captcha.html");
+
   res.redirect("/login.html");
 }
 

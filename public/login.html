@@ -86,6 +86,15 @@ async function entrar() {
         });
     const datos = await respuesta.json();
 
+    // Credenciales correctas. Todavía NO hay sesión: el servidor guardó un
+    // inicio de sesión pendiente y manda a la comprobación humana.
+    if (datos.requiereCaptcha) {
+      $("password").value = "";
+      $("mensajes").innerHTML = `<div class="exito">${datos.mensaje}</div>`;
+      location.href = datos.siguiente || "/captcha.html";
+      return;
+    }
+
     if (datos.ok) {
       $("mensajes").innerHTML =
         `<div class="exito">${datos.mensaje} Bienvenida, ${datos.username} (${datos.rol}).</div>`;
@@ -105,8 +114,8 @@ async function entrar() {
     }
     pintarErrores(lista);
   } catch (e) {
-    pintarErrores([`El servidor respondió ${respuesta.status} y no en JSON. ` +
-                         `Revisa que la ruta exista en server.js.`]);
+    pintarErrores(["No se pudo completar la petición de inicio de sesión. " +
+                   "Revisa que el servidor esté arriba y que la ruta exista en server.js."]);
   } finally {
     if (!cuentaAtras) $("btnEntrar").disabled = false;
   }

@@ -20,6 +20,7 @@ const { registrar } = require("./src/registro.js");
 const { autenticar } = require("./src/login.js");
 const { proteccionLogin } = require("./src/fuerzaBruta.js");
 const { requiereSesion, requiereSesionPagina, requiereRol } = require("./src/autorizacion.js");
+const captcha = require("./src/captcha.js");
 const { perfil, listadoUsuarios, desbloquearUsuario } = require("./src/panel.js");
 const { configuracionTLS, arrancar } = require("./src/https.js");
 
@@ -34,6 +35,29 @@ try {
 } catch (e) {
   console.error("Configuración de HTTPS inválida: " + e.message);
   process.exit(1);
+}
+
+/* --- Modo de prueba del CAPTCHA -------------------------------------------
+   test/servidor.js recorre el flujo completo por HTTP, y un CAPTCHA que
+   funcione no lo puede resolver un programa: ese es justamente su trabajo. Con
+   CAPTCHA_PRUEBA definida, el desafío se genera siempre de tipo "texto" y con
+   una respuesta conocida, de modo que la prueba de humo pueda comprobar el
+   cableado entero (que es para lo que existe) sin desactivar nada.
+
+   Para que eso no se convierta en una puerta trasera, la variable y un
+   certificado configurado son incompatibles: en producción SIEMPRE hay
+   TLS_CERT y TLS_KEY, así que el servidor sencillamente no arranca. Es la
+   misma regla del resto del proyecto: un error de configuración detiene el
+   arranque, no se degrada en silencio.
+--------------------------------------------------------------------------- */
+const CAPTCHA_PRUEBA = process.env.CAPTCHA_PRUEBA || "";
+if (CAPTCHA_PRUEBA && tls) {
+  console.error("CAPTCHA_PRUEBA está definida y hay un certificado configurado. " +
+                "Ese modo es solo para las pruebas automáticas: no arranco.");
+  process.exit(1);
+}
+if (CAPTCHA_PRUEBA) {
+  console.log("AVISO: CAPTCHA en modo de prueba, con respuesta fija. Solo para test/servidor.js.");
 }
 
 /* La IP del cliente se toma de la conexión TCP, que no se puede falsificar.
@@ -129,21 +153,172 @@ app.post("/login", proteccionLogin.middleware, async (req, res, next) => {
       return res.status(estado).json(cuerpo);
     }
 
-    // Inicio de sesión correcto: la IP queda limpia.
-    proteccionLogin.registrarExito(req);
+    /* Credenciales correctas, pero la sesión TODAVÍA NO se abre: falta el
+       CAPTCHA. Lo que se guarda es un inicio de sesión "pendiente", que no
+       sirve para nada por sí mismo: requiereSesion y requiereSesionPagina
+       miran req.session.usuario, que sigue vacío.
 
-    // Se genera una sesión NUEVA al iniciar sesión. Si se reutilizara la
-    // anterior, un atacante podría fijar de antemano el identificador de
-    // sesión de la víctima y heredar su sesión ya autenticada (session
-    // fixation).
+       El contador de la IP se limpia al final del todo, en POST /captcha, no
+       aquí: mientras el paso intermedio no se supere, el inicio de sesión no
+       ha terminado. */
+
+    /* La sesión se renueva AQUÍ, no al superar el CAPTCHA, y el motivo merece
+       explicarse porque es el punto delicado de este diseño:
+
+       Si un atacante consigue fijar de antemano el identificador de sesión de
+       la víctima (session fixation) y la renovación se hiciera al final, el
+       "pendiente" quedaría escrito en una sesión cuyo identificador el
+       atacante conoce. Le bastaría entonces con resolver él mismo un CAPTCHA
+       —es una persona, lo resuelve sin esfuerzo— para quedarse con la sesión
+       de la víctima. Renovando al guardar el pendiente, el identificador que
+       el atacante plantó muere antes de que exista nada que robar. */
     req.session.regenerate((err) => {
       if (err) return next(err);
-      req.session.usuario = usuario;
-      res.status(estado).json(cuerpo);
+
+      req.session.pendiente = {
+        id: usuario.id, username: usuario.username, rol: usuario.rol,
+        creado: Date.now()
+      };
+      req.session.captcha = nuevoDesafio();
+      req.session.intentosCaptcha = captcha.INTENTOS;
+
+      res.status(200).json({
+        ok: true,
+        autenticado: false,
+        requiereCaptcha: true,
+        siguiente: "/captcha.html",
+        mensaje: "Credenciales correctas. Falta comprobar que eres una persona."
+      });
     });
   } catch (e) {
     next(e);
   }
+});
+
+/* --- Verificación humana (CAPTCHA) -----------------------------------------
+   Paso intermedio entre "la contraseña es correcta" y "hay sesión". Ver
+   src/captcha.js para qué defiende y qué no.
+
+   El desafío entero, dibujo incluido, se guarda en req.session, que vive en la
+   memoria del servidor. Son unos 7 KB por inicio de sesión a medias, y caducan
+   a los CAPTCHA.MINUTOS_VIGENCIA minutos. La alternativa sería guardar solo la
+   respuesta y volver a dibujar en cada petición; con un servidor único no
+   compensa la complicación.
+--------------------------------------------------------------------------- */
+
+/** Crea un desafío nuevo, respetando el modo de prueba si está activo. */
+function nuevoDesafio(tipo) {
+  if (CAPTCHA_PRUEBA) {
+    const desafio = captcha.crearDesafio("texto");
+    desafio.respuesta = captcha.normalizar("texto", CAPTCHA_PRUEBA);
+    return desafio;
+  }
+  return captcha.crearDesafio(tipo);
+}
+
+/** Devuelve el inicio de sesión pendiente si existe, tiene desafío y no caducó. */
+function pendienteVigente(req) {
+  const pendiente = req.session && req.session.pendiente;
+  // Se exige también el desafío: las dos cosas se guardan y se borran juntas,
+  // así que si falta una, la sesión está a medio escribir y no es de fiar.
+  if (!pendiente || !req.session.captcha) return null;
+  if (Date.now() - pendiente.creado > captcha.MINUTOS_VIGENCIA * 60 * 1000) return null;
+  return pendiente;
+}
+
+/** Tira el inicio de sesión a medias. Obliga a volver a escribir la contraseña. */
+function descartarPendiente(req) {
+  if (!req.session) return;
+  delete req.session.pendiente;
+  delete req.session.captcha;
+  delete req.session.intentosCaptcha;
+}
+
+const SIN_PENDIENTE = {
+  ok: false,
+  reiniciar: true,
+  errores: ["No hay un inicio de sesión en curso, o ya caducó. " +
+            "Vuelve a introducir tus credenciales."]
+};
+
+// Entrega el desafío actual. Recargar la página NO gasta intentos; pedir otra
+// imagen a propósito (?otra=1) sí, porque si no, un programa podría pedir
+// imágenes hasta que le saliera una cómoda de resolver.
+app.get("/captcha", (req, res) => {
+  if (!pendienteVigente(req)) {
+    descartarPendiente(req);
+    return res.status(401).json(SIN_PENDIENTE);
+  }
+
+  if (req.query.otra === "1") {
+    req.session.intentosCaptcha -= 1;
+    if (req.session.intentosCaptcha <= 0) {
+      descartarPendiente(req);
+      return res.status(401).json(SIN_PENDIENTE);
+    }
+    // Del MISMO tipo: si cambiara, bastaría con insistir hasta que saliera la
+    // variante más fácil de automatizar.
+    req.session.captcha = nuevoDesafio(req.session.captcha.tipo);
+  }
+
+  res.json({
+    ok: true,
+    usuario: req.session.pendiente.username,
+    intentosRestantes: req.session.intentosCaptcha,
+    desafio: captcha.parteMostrable(req.session.captcha)
+  });
+});
+
+// Comprueba la respuesta. Solo aquí se abre la sesión de verdad.
+app.post("/captcha", (req, res) => {
+  const pendiente = pendienteVigente(req);
+  if (!pendiente) {
+    descartarPendiente(req);
+    return res.status(401).json(SIN_PENDIENTE);
+  }
+
+  // La comparación ocurre en el servidor, contra lo guardado en la sesión. La
+  // respuesta correcta no ha viajado nunca al navegador: si viajara, daría
+  // igual lo bien dibujado que estuviera el desafío.
+  if (!captcha.verificar(req.session.captcha, (req.body || {}).respuesta)) {
+    req.session.intentosCaptcha -= 1;
+
+    if (req.session.intentosCaptcha <= 0) {
+      descartarPendiente(req);
+      return res.status(401).json({
+        ok: false,
+        reiniciar: true,
+        errores: ["Demasiados fallos en la comprobación. Vuelve a introducir tus credenciales."]
+      });
+    }
+
+    // Nunca se repite el mismo desafío: si se repitiera, se podría ir
+    // probando respuestas contra una imagen fija hasta acertar.
+    req.session.captcha = nuevoDesafio(req.session.captcha.tipo);
+
+    return res.status(401).json({
+      ok: false,
+      intentosRestantes: req.session.intentosCaptcha,
+      desafio: captcha.parteMostrable(req.session.captcha),
+      errores: ["La respuesta no es correcta. Inténtalo con el desafío nuevo."]
+    });
+  }
+
+  /* Acertó: ahora sí. No hace falta renovar la sesión otra vez, porque este
+     identificador nació en POST /login y solo lo conoce este navegador. */
+  proteccionLogin.registrarExito(req);
+
+  const usuario = { id: pendiente.id, username: pendiente.username, rol: pendiente.rol };
+  descartarPendiente(req);
+  req.session.usuario = usuario;
+
+  res.json({
+    ok: true,
+    autenticado: true,
+    username: usuario.username,
+    rol: usuario.rol,
+    mensaje: "Sesión iniciada."
+  });
 });
 
 app.post("/logout", (req, res) => {
